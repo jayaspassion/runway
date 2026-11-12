@@ -69,7 +69,8 @@ export function buildStudioData(data: DashboardData): AgDataSourcesDefinition {
 
   return {
     description:
-      'PayPal sandbox data fetched over the REST API for a merchant that sells subscription products and sends invoices. ' +
+      'PayPal sandbox data fetched over the REST API for a freelance studio that invoices its clients. ' +
+      'The Cash Forecast table predicts when each open invoice will be paid, from each customer\'s payment history. ' +
       'Invoices are in USD, EUR or GBP and are not converted, so filter by currency before summing money. ' +
       'Invoice payments are recorded externally (bank transfer, card, check, cash). The ledger holds payouts to affiliates, creators and customers.',
     sources: [
@@ -82,6 +83,9 @@ export function buildStudioData(data: DashboardData): AgDataSourcesDefinition {
           ['name', 'Customer', 'textFormat'],
           ['company', 'Company', 'textFormat'],
           ['email', 'Email', 'textFormat'],
+          ['payerType', 'Payer Type', 'textFormat'],
+          ['paidInvoices', 'Paid Invoices', 'integerFormat'],
+          ['avgDaysLate', 'Avg Days Late', 'integerFormat'],
         ]),
       },
       {
@@ -144,6 +148,31 @@ export function buildStudioData(data: DashboardData): AgDataSourcesDefinition {
           ['date', 'Payment Date', 'dateFormat'],
           ['amount', 'Payment Amount', 'currencyFormat'],
           ['signedAmount', 'Net Cash', 'currencyFormat'],
+        ]),
+      },
+      {
+        id: 'forecast',
+        name: 'Cash Forecast',
+        description:
+          'One row per open invoice, with the date it is expected to be paid. The expected date is the due date shifted by how late ' +
+          'that customer has paid before (see customers.avgDaysLate). Risk is "At risk" when the invoice is already later than the ' +
+          "customer's habit, \"Likely late\" when the habit is to pay more than 3 days late, otherwise \"On track\". " +
+          'Confidence reflects how much payment history the customer has. Expected Week is the Monday of the week, as yyyy-mm-dd text. Sum Expected Amount by Expected Week for a cash-in forecast.',
+        data: data.forecast,
+        fields: fields([
+          ['id', 'Forecast ID', 'textFormat', true],
+          ['invoiceId', 'Invoice ID', 'textFormat', true],
+          ['number', 'Forecast Invoice', 'textFormat'],
+          ['customerId', 'Customer ID', 'textFormat', true],
+          ['amount', 'Expected Amount', 'currencyFormat'],
+          ['dueDate', 'Forecast Due Date', 'dateFormat'],
+          ['expectedDate', 'Expected Pay Date', 'dateFormat'],
+          ['expectedWeek', 'Expected Week', 'textFormat'],
+          ['expectedDaysLate', 'Expected Days Late', 'integerFormat'],
+          ['daysFromNow', 'Days Until Paid', 'integerFormat'],
+          ['within30Days', 'Expected Within 30 Days', 'currencyFormat'],
+          ['confidence', 'Forecast Confidence', 'textFormat'],
+          ['risk', 'Payment Risk', 'textFormat'],
         ]),
       },
       {
@@ -225,6 +254,7 @@ export function buildStudioData(data: DashboardData): AgDataSourcesDefinition {
       manyToOne('invoice-customer', 'invoices.customerId', 'customers.id'),
       manyToOne('item-invoice', 'invoiceItems.invoiceId', 'invoices.id'),
       manyToOne('payment-invoice', 'invoicePayments.invoiceId', 'invoices.id'),
+      manyToOne('forecast-invoice', 'forecast.invoiceId', 'invoices.id'),
       manyToOne('plan-product', 'plans.productId', 'products.id'),
       onCalendar('invoices', 'invoiceDate'),
       onCalendar('invoicePayments', 'date'),

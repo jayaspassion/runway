@@ -19,6 +19,7 @@ import {
 //   invoices.customerId        -> customers.id
 //   invoiceItems.invoiceId     -> invoices.id
 //   invoicePayments.invoiceId  -> invoices.id
+//   forecast.invoiceId         -> invoices.id
 //   plans.productId            -> products.id
 // Invoice, payment, transaction and payout dates also bind to a shared calendar.
 
@@ -104,8 +105,103 @@ function invoiceRows(invoices: Invoice[], today: string) {
   });
 }
 
+// --- Payment habits and the cash forecast --------------------------------------------
+//
+// The forecast is deliberately simple and explainable: each customer's open invoices are expected
+// to be paid as late (or early) as that customer has paid before.
+
+const addDays = (date: string, days: number) => new Date(Date.parse(date) + days * DAY_MS).toISOString().slice(0, 10);
+const mean = (values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
+
+type Habit = { paidInvoices: number; avgDaysLate: number; spread: number };
+
+// Days between the due date and the first payment, per paid invoice, per customer.
+function paymentHabits(invoices: Invoice[]): Map<string, Habit> {
+  const lateness = new Map<string, number[]>();
+  for (const inv of invoices) {
+    const due = inv.detail.payment_term?.due_date;
+    const paid = inv.payments?.transactions
+      ?.map((t) => t.payment_date)
+      .filter((d) => d !== undefined)
+      .sort()[0];
+    if (!due || !paid || RECEIVABLE.has(inv.status)) continue;
+    const id = customerIdOf(inv);
+    lateness.set(id, [...(lateness.get(id) ?? []), daysBetween(due, paid)]);
+  }
+  return new Map(
+    [...lateness].map(([id, days]) => {
+      const avg = mean(days);
+      return [id, { paidInvoices: days.length, avgDaysLate: avg, spread: Math.sqrt(mean(days.map((d) => (d - avg) ** 2))) }];
+    }),
+  );
+}
+
+function payerType(habit?: Habit) {
+  if (!habit) return 'New customer';
+  if (habit.avgDaysLate <= -2) return 'Pays early';
+  if (habit.avgDaysLate <= 2) return 'Pays on time';
+  if (habit.avgDaysLate <= 14) return 'Pays late';
+  return 'Pays very late';
+}
+
+// Monday of the week a date falls in, so weeks sort and label consistently.
+function weekStart(date: string) {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return addDays(date, -((day + 6) % 7));
+}
+
+function forecastRows(invoices: Invoice[], today: string) {
+  const habits = paymentHabits(invoices);
+  const all = [...habits.values()];
+  // A customer with no history is assumed to pay like the average customer.
+  const typicalDaysLate = all.length > 0 ? mean(all.map((h) => h.avgDaysLate)) : 0;
+
+  return invoices
+    .filter((inv) => RECEIVABLE.has(inv.status) && inv.detail.payment_term?.due_date)
+    .map((inv) => {
+      const habit = habits.get(customerIdOf(inv));
+      const dueDate = inv.detail.payment_term!.due_date!;
+      const habitualDaysLate = Math.round(habit?.avgDaysLate ?? typicalDaysLate);
+      const byHabit = addDays(dueDate, habitualDaysLate);
+      // Already later than this customer has ever been on average: no history to lean on, so
+      // assume a week from now and flag it.
+      const slipped = byHabit < today;
+      const expectedDate = slipped ? addDays(today, 7) : byHabit;
+      const amount = amountOf(inv.due_amount);
+      const daysFromNow = daysBetween(today, expectedDate);
+
+      return {
+        id: inv.id,
+        invoiceId: inv.id,
+        number: inv.detail.invoice_number,
+        customerId: customerIdOf(inv),
+        amount,
+        dueDate,
+        expectedDate,
+        expectedWeek: weekStart(expectedDate),
+        expectedDaysLate: daysBetween(dueDate, expectedDate),
+        daysFromNow,
+        within30Days: daysFromNow <= 30 ? amount : 0,
+        confidence: !habit ? 'Low' : habit.paidInvoices >= 3 && habit.spread <= 6 ? 'High' : 'Medium',
+        risk: slipped ? 'At risk' : habitualDaysLate > 3 ? 'Likely late' : 'On track',
+      };
+    });
+}
+
 function customerRows(invoices: Invoice[]) {
-  const byId = new Map<string, { id: string; name: string; company: string | null; email: string | null }>();
+  const habits = paymentHabits(invoices);
+  const byId = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      company: string | null;
+      email: string | null;
+      payerType: string;
+      paidInvoices: number;
+      avgDaysLate: number | null;
+    }
+  >();
   for (const inv of invoices) {
     const info = inv.primary_recipients?.[0]?.billing_info;
     const id = customerIdOf(inv);
@@ -116,6 +212,9 @@ function customerRows(invoices: Invoice[]) {
         // Individuals have no business name; label them so company charts stay readable.
         company: info?.business_name ?? 'Individual',
         email: info?.email_address ?? null,
+        payerType: payerType(habits.get(id)),
+        paidInvoices: habits.get(id)?.paidInvoices ?? 0,
+        avgDaysLate: habits.has(id) ? Math.round(habits.get(id)!.avgDaysLate) : null,
       });
     }
   }
@@ -293,6 +392,7 @@ export async function getDashboardData(asOf = new Date()) {
     invoices: invoiceRows(invoices, today),
     invoiceItems: invoiceItemRows(invoices),
     invoicePayments: invoicePaymentRows(invoices),
+    forecast: forecastRows(invoices, today),
     products: productRows(products),
     plans: planRows(plans),
     transactions: transactionRows(transactions),

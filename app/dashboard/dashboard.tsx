@@ -10,7 +10,8 @@
 // Nothing tracks edits as they happen. Save reads the report from Studio with getState(), and
 // leaving a report compares Studio's state with the saved one there and then.
 
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AgStudioAiModule,
   enableStudioDevValidations,
@@ -45,6 +46,8 @@ import { pagesFor, pageTitlesFor } from './page-titles';
 import { ReportsSidebar } from './components/sidebar';
 import { DashboardSkeleton } from './components/skeleton';
 import * as reportState from './report-state';
+import { runwayToolDisplay, runwayWidgets } from './runway/register';
+import { runwayStore } from './runway/store';
 import { buildAi } from './studio/ai';
 import { buildStudioData, hasData } from './studio/data';
 import { agStudioPayPalTheme } from './studio/theme';
@@ -98,6 +101,11 @@ function ReportsDashboard({ data, licenseKey, aiModels }: DashboardProps) {
   const studioData = useMemo(() => buildStudioData(data), [data]);
   // `ai` is read once, when Studio is created.
   const ai = useMemo(() => (aiModels?.length ? buildAi(aiModels) : undefined), [aiModels]);
+
+  // The cash-flow agent and the Runway widgets read the same data as Studio, through their own
+  // store. After an approved action changes an invoice, the store asks for fresh PayPal data.
+  const router = useRouter();
+  useEffect(() => runwayStore.setData(data, () => router.refresh()), [data, router]);
 
   // --- Driving Studio ---------------------------------------------------------------
   const load = (
@@ -263,7 +271,10 @@ function ReportsDashboard({ data, licenseKey, aiModels }: DashboardProps) {
               theme={agStudioPayPalTheme}
               layout={{ widgetBorderEnabled: true }}
               data={studioData}
+              // Studio's props are typed for its built-in widgets; the Runway registry adds two.
+              widgets={runwayWidgets as never}
               ai={ai}
+              aiToolDisplay={runwayToolDisplay}
               initialState={initialState}
               mode={mode}
               onApiReady={(event) => {

@@ -1,4 +1,4 @@
-// The built-in "PayPal overview" report: pages for revenue, receivables, cash and catalogue, as
+// The built-in "Runway" report: the cash-flow page, then pages for revenue, receivables, cash and catalogue, as
 // AG Studio report state. Field ids ('invoices.paidAmount') refer to the data sources in ./data.ts.
 
 import type { AgPageState, AgReportState, AgWidgetLayoutState } from 'ag-studio';
@@ -42,6 +42,53 @@ const kpi = (text: string, value: { id: string; aggregation?: 'sum' | 'avg' | 'c
 });
 
 // --- Pages ------------------------------------------------------------------------
+
+// The Runway page: when the money is expected, what the agent suggests doing about it, and the
+// payment habits the forecast is built from. The two `runway-*` widgets are custom
+// (../runway/widgets.tsx); Studio's state types only know the built-in widget types.
+const runway = {
+  id: 'runway',
+  widgets: {
+    'kpi-expected': kpi('Expected in 30 days', sum('forecast.within30Days')),
+    'kpi-open': kpi('Outstanding', sum('invoices.outstanding')),
+    'kpi-late': kpi('Overdue', sum('invoices.overdueAmount')),
+    'kpi-days': kpi('Avg days to get paid', avg('invoices.daysToPay')),
+    'cash-runway': { type: 'runway-cash' },
+    'action-queue': { type: 'runway-actions' },
+    'forecast-by-week': {
+      type: 'column-chart-stacked',
+      dataMapping: {
+        categoryKey: [{ id: 'forecast.expectedWeek' }],
+        valueKey: [sum('forecast.amount')],
+        legendKey: [{ id: 'forecast.risk' }],
+      },
+      sort: [{ field: { id: 'forecast.expectedWeek' }, direction: 'asc' }],
+      format: {
+        ...title('Expected cash-in by week'),
+        style: { theme: { common: { legend: { enabled: true } } } },
+      },
+    },
+    'payer-habits': {
+      type: 'bar-chart-grouped',
+      dataMapping: {
+        categoryKey: [{ id: 'customers.company' }],
+        valueKey: [avg('customers.avgDaysLate')],
+      },
+      sort: [{ field: avg('customers.avgDaysLate'), direction: 'desc' }],
+      format: title('Average days late by client'),
+    },
+  },
+  widgetLayout: {
+    'kpi-expected': at(0, 0, 6, 7),
+    'kpi-open': at(6, 0, 6, 7),
+    'kpi-late': at(12, 0, 6, 7),
+    'kpi-days': at(18, 0, 6, 7),
+    'cash-runway': at(0, 7, 14, 30),
+    'action-queue': at(14, 7, 10, 30),
+    'forecast-by-week': at(0, 37, 12, 20),
+    'payer-habits': at(12, 37, 12, 20),
+  },
+} as unknown as AgPageState;
 
 const revenue: AgPageState = {
   id: 'revenue',
@@ -397,6 +444,6 @@ const catalogue: AgPageState = {
 };
 // The report opens on its first page.
 export const dashboardReport: AgReportState = {
-  selectedPageId: revenue.id,
-  pages: [revenue, receivables, cash, catalogue],
+  selectedPageId: runway.id,
+  pages: [runway, revenue, receivables, cash, catalogue],
 };

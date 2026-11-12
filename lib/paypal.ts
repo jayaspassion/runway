@@ -62,6 +62,33 @@ async function get<T>(path: string): Promise<T> {
   }
 }
 
+// Writes. PayPal answers 204 with no body for most actions, hence the nullable result.
+async function send<T = unknown>(method: 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const text = await res.text();
+      return text ? (JSON.parse(text) as T) : null;
+    }
+    if (res.status === 401 && attempt === 1) {
+      cachedToken = undefined;
+      continue;
+    }
+    // Writes are retried only when PayPal says it is rate limiting, never on a 5xx, which may
+    // have been applied.
+    if (res.status === 429 && attempt < MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 250));
+      continue;
+    }
+    throw new PayPalApiError(res.status, path, await res.text());
+  }
+}
+
 // `path` must already carry whatever flag makes the endpoint report `total_pages`.
 async function listAll<T>(path: string, key: string, pageSize: number): Promise<T[]> {
   const items: T[] = [];
@@ -180,6 +207,44 @@ export type Invoice = {
 export async function listInvoices(): Promise<Invoice[]> {
   const summaries = await listAll<{ id: string }>('/v2/invoicing/invoices?total_required=true', 'items', 100);
   return Promise.all(summaries.map((i) => get<Invoice>(`/v2/invoicing/invoices/${encodeURIComponent(i.id)}`)));
+}
+
+const invoicePath = (id: string) => `/v2/invoicing/invoices/${encodeURIComponent(id)}`;
+
+export function getInvoice(id: string): Promise<Invoice> {
+  return get<Invoice>(invoicePath(id));
+}
+
+/** Emails the recipient a reminder for an unpaid invoice. */
+export async function remindInvoice(id: string, subject: string, note: string): Promise<void> {
+  await send('POST', `${invoicePath(id)}/remind`, { subject, note, send_to_invoicer: false });
+}
+
+/** Sends a draft invoice, which is what makes it payable. */
+export async function sendInvoice(id: string): Promise<void> {
+  await send('POST', `${invoicePath(id)}/send`, { send_to_recipient: true, send_to_invoicer: false });
+}
+
+/**
+ * Applies an invoice-level percentage discount and replaces the invoice note. PayPal has no
+ * partial update, so the invoice is read, changed and written back whole, minus the fields the
+ * API reports but does not accept.
+ */
+export async function discountInvoice(id: string, percent: number, note: string): Promise<Invoice> {
+  const current = await get<Record<string, any>>(invoicePath(id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { links: _links, status: _status, id: _id, due_amount: _due, payments: _payments, refunds: _refunds, ...body } = current;
+  const { metadata: _metadata, viewed_by_recipient: _viewed, ...detail } = body.detail ?? {};
+  await send('PUT', `${invoicePath(id)}?send_to_recipient=false&send_to_invoicer=false`, {
+    ...body,
+    detail: { ...detail, note },
+    amount: {
+      breakdown: {
+        ...current.amount?.breakdown,
+        discount: { invoice_discount: { percent: String(percent) } },
+      },
+    },
+  });
+  return getInvoice(id);
 }
 
 // --- Transaction Search & balances -------------------------------------------------

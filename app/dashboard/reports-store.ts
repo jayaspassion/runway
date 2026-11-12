@@ -18,12 +18,13 @@ export type SavedReport = {
 
 export type StoredReports = { reports: SavedReport[]; activeId: string };
 
-const STORAGE_KEY = 'ag-paypal-demo:reports:v1';
+const STORAGE_KEY = 'runway:reports:v1';
 
 export const BUILT_IN_ID = 'paypal-overview';
 
 // Sidebar titles for the built-in report's pages, keyed by page id in initial-report.ts.
 const defaultPageTitles: Record<string, string> = {
+  runway: 'Cash runway',
   revenue: 'Revenue',
   receivables: 'Receivables',
   cash: 'Cash & payouts',
@@ -32,7 +33,7 @@ const defaultPageTitles: Record<string, string> = {
 
 export const defaultReport = (): SavedReport => ({
   id: BUILT_IN_ID,
-  name: 'PayPal overview',
+  name: 'Runway',
   builtIn: true,
   pageTitles: defaultPageTitles,
   state: dashboardReport,
