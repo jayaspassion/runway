@@ -8,6 +8,8 @@ Freelancers know what they are owed. What they don't know is *when it will actua
 2. **Proposes** PayPal actions to bring the cash in sooner: a reminder, an early-payment discount, or sending a draft.
 3. **Acts only on approval.** The agent can queue an action; it cannot execute one. A person clicks Approve, and only then does the request go to PayPal.
 
+**Live demo:** <https://runway-2cnq.onrender.com/dashboard> (PayPal sandbox data; the first load can take up to a minute while the free host wakes up).
+
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 ## What it looks like

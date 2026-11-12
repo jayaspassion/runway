@@ -2,6 +2,9 @@
 
 Text to paste into the Devpost form, and a script for the demo video.
 
+- **Demo URL:** https://runway-2cnq.onrender.com/dashboard
+- **Repository:** https://github.com/jayaspassion/runway
+
 ## Project name
 
 Runway
