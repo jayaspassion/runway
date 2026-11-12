@@ -232,8 +232,10 @@ export async function sendInvoice(id: string): Promise<void> {
  */
 export async function discountInvoice(id: string, percent: number, note: string): Promise<Invoice> {
   const current = await get<Record<string, any>>(invoicePath(id)); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const { links: _links, status: _status, id: _id, due_amount: _due, payments: _payments, refunds: _refunds, ...body } = current;
-  const { metadata: _metadata, viewed_by_recipient: _viewed, ...detail } = body.detail ?? {};
+  const body = { ...current };
+  for (const key of ['links', 'status', 'id', 'due_amount', 'payments', 'refunds']) delete body[key];
+  const detail = { ...body.detail };
+  for (const key of ['metadata', 'viewed_by_recipient']) delete detail[key];
   await send('PUT', `${invoicePath(id)}?send_to_recipient=false&send_to_invoicer=false`, {
     ...body,
     detail: { ...detail, note },

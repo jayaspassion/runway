@@ -2,28 +2,28 @@
 
 import type { ReactNode } from 'react';
 import { BellIcon, HelpIcon } from './ui/icons';
-import { AgStudioLogo } from './ui/logo';
 
 // The app frame, laid out like the PayPal Developer Dashboard: a white top bar, a left sidebar
 // and a light canvas. Shared by the dashboard, its loading skeleton and its error page.
 
-function PayPalWordmark({ className = '' }: { className?: string }) {
+// Runway's own mark: a runway seen from above, narrowing towards the horizon.
+function RunwayMark({ className = '' }: { className?: string }) {
   return (
-    <span className={`font-bold italic tracking-tight ${className}`}>
-      <span className="text-pp-blue-dark">Pay</span>
-      <span className="text-pp-sky">Pal</span>
-    </span>
+    <svg viewBox="0 0 32 32" className={className} role="img" aria-label="Runway">
+      <rect width="32" height="32" rx="8" fill="var(--pp-navy)" />
+      <path d="M13 6h6l5 20H8L13 6Z" fill="var(--pp-blue)" />
+      <path d="M16 9v3M16 15v3.5M16 21.5V25" stroke="white" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
 
 function BrandLockup() {
   return (
     <div className="flex items-center gap-3">
-      <AgStudioLogo className="-ml-3 h-12 w-auto" />
+      <RunwayMark className="size-8" />
+      <span className="text-xl font-semibold tracking-tight text-pp-navy">Runway</span>
       <span className="h-6 w-px bg-pp-border" aria-hidden />
-      <span className="flex items-baseline gap-1 text-xs text-pp-muted">
-        powered by <PayPalWordmark className="text-base" /> APIs
-      </span>
+      <span className="hidden text-xs text-pp-muted sm:inline">Cash-flow agent for PayPal invoices</span>
     </div>
   );
 }
@@ -41,9 +41,9 @@ function TopBar() {
         </span>
         <span className="ml-2 flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-full bg-pp-navy text-sm font-semibold text-white">
-            AG
+            RW
           </span>
-          <span className="hidden text-sm font-semibold sm:inline">Demo merchant</span>
+          <span className="hidden text-sm font-semibold sm:inline">Demo studio</span>
         </span>
       </div>
     </header>

@@ -19,9 +19,26 @@ const RETRY_WITH_NEXT_MODEL = new Set([404, 429, 500, 503]);
 
 const error = (status: number, message: string) => Response.json({ error: { message } }, { status });
 
+// A hosted demo has no sign-in, so this caps how much of the Gemini quota one visitor can spend.
+// In memory and per server instance: enough to stop a runaway tab, not a security boundary.
+const RATE_WINDOW_MS = 5 * 60_000;
+const RATE_LIMIT = 150;
+const recentCalls = new Map<string, number[]>();
+
+function overLimit(request: Request): boolean {
+  const visitor = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'local';
+  const now = Date.now();
+  const calls = (recentCalls.get(visitor) ?? []).filter((at) => now - at < RATE_WINDOW_MS);
+  calls.push(now);
+  recentCalls.set(visitor, calls);
+  return calls.length > RATE_LIMIT;
+}
+
 export async function POST(request: Request) {
   const apiKey = geminiKey();
   if (!apiKey) return error(503, 'The AI assistant is not configured: set GEMINI_API_KEY in .env.local.');
+
+  if (overLimit(request)) return error(429, 'Too many assistant requests from this address. Try again in a few minutes.');
 
   let body: Record<string, unknown>;
   try {

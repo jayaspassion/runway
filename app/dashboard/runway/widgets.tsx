@@ -90,7 +90,7 @@ export function CashRunwayWidget() {
         {rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-pp-muted">No open invoices. Nothing to wait for.</p>
         ) : (
-          <div className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-center gap-x-3 pr-24">
+          <div className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-center gap-x-3 pr-20">
             <div />
             <div className="relative h-5 text-[11px] text-pp-muted">
               {ticks.map((days) => (
