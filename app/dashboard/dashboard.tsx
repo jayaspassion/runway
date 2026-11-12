@@ -57,7 +57,7 @@ if (process.env.NODE_ENV !== 'production') {
 type DashboardProps = {
   data: DashboardData;
   licenseKey?: string;
-  /** OpenAI models the assistant may use; omitted when no key is configured, which hides the assistant. */
+  /** Gemini models the assistant may use; omitted when no key is configured, which hides the assistant. */
   aiModels?: string[];
 };
 

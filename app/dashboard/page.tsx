@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   await connection();
   const data = await getDashboardData();
 
-  // Only the model ids reach the client; the OpenAI key stays on the server (lib/ai.ts).
+  // Only the model ids reach the client; the Gemini key stays on the server (lib/ai.ts).
   return (
     <Dashboard
       data={data}
